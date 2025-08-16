@@ -31,9 +31,39 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Check dependencies
+# Check and install dependencies
 check_dependencies() {
-    log_info "Checking toolchain dependencies..."
+    log_info "Checking and installing toolchain dependencies..."
+    
+    # Install comprehensive system dependencies for LLVM build
+    log_info "Installing system dependencies for LLVM build..."
+    sudo apt update >/dev/null 2>&1
+    sudo apt install -y \
+        build-essential \
+        clang \
+        clang++ \
+        libc6-dev \
+        libc6-dev-i386 \
+        linux-libc-dev \
+        libedit-dev \
+        libffi-dev \
+        libncurses5-dev \
+        libncurses-dev \
+        libxml2-dev \
+        zlib1g-dev \
+        libzstd-dev \
+        libtinfo-dev \
+        libatomic1 \
+        swig \
+        python3-dev \
+        binutils-dev \
+        lld \
+        gcc-multilib \
+        g++-multilib \
+        libc++-dev \
+        libc++abi-dev \
+        libunwind-dev \
+        libgcc-s1 >/dev/null 2>&1 || log_warning "Some system packages may not have installed correctly"
     
     local deps=("cmake" "python3" "git")
     local missing_deps=()
@@ -61,7 +91,7 @@ check_dependencies() {
         exit 1
     fi
     
-    log_success "Dependencies verified"
+    log_success "Dependencies verified and system packages installed"
 }
 
 # Setup toolchain directory
@@ -80,12 +110,36 @@ clone_llvm() {
     
     cd "$TOOLCHAIN_DIR/src"
     
-    # Clone LLVM
-    if [ ! -d "llvm-project" ]; then
-        git clone --depth 1 --branch main https://github.com/llvm/llvm-project.git
-    else
-        cd llvm-project && git pull origin main && cd ..
+    # Remove any corrupted clone
+    if [ -d "llvm-project" ]; then
+        log_info "Removing existing LLVM directory..."
+        rm -rf llvm-project
     fi
+    
+    # Clone LLVM with retry logic
+    local max_retries=3
+    local retry=0
+    
+    while [ $retry -lt $max_retries ]; do
+        log_info "Attempting LLVM clone (attempt $((retry + 1))/$max_retries)..."
+        
+        if git clone --depth 1 --single-branch --branch main https://github.com/llvm/llvm-project.git; then
+            log_success "LLVM clone successful"
+            break
+        else
+            retry=$((retry + 1))
+            log_warning "LLVM clone failed, attempt $retry/$max_retries"
+            rm -rf llvm-project 2>/dev/null || true
+            
+            if [ $retry -eq $max_retries ]; then
+                log_error "Failed to clone LLVM after $max_retries attempts"
+                return 1
+            fi
+            
+            log_info "Waiting 10 seconds before retry..."
+            sleep 10
+        fi
+    done
     
     log_success "LLVM source ready"
 }

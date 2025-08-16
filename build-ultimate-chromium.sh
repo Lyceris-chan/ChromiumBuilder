@@ -207,14 +207,19 @@ setup_custom_toolchain() {
         log_error "Custom toolchain setup failed"
         log_info "Falling back to system Clang toolchain..."
         
-        # Fallback: use system clang if custom build fails
+        # Fallback: install and use system clang if custom build fails
+        log_info "Installing system Clang toolchain as fallback..."
+        sudo apt update >/dev/null 2>&1
+        sudo apt install -y clang clang++ lld libc++-dev libc++abi-dev build-essential >/dev/null 2>&1
+        
         if command -v clang >/dev/null && command -v clang++ >/dev/null; then
             log_warning "Using system Clang toolchain as fallback"
             export CC=clang
             export CXX=clang++
+            export LD=lld
             return 0
         else
-            log_error "No usable Clang toolchain available"
+            log_error "Failed to install system Clang toolchain"
             exit 1
         fi
     fi
