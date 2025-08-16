@@ -53,18 +53,35 @@ check_dependencies() {
     log_info "Checking dependencies..."
     
     local deps=("git" "python3" "ninja" "curl" "tar" "patch" "make" "cmake")
+    local missing_deps=()
+    
     for dep in "${deps[@]}"; do
         if ! command -v "$dep" &> /dev/null; then
+            missing_deps+=("$dep")
             log_error "Required dependency '$dep' not found"
-            exit 1
         fi
     done
     
     # Check for minimum Python version
-    python3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)" || {
-        log_error "Python 3.8+ required"
+    if command -v python3 &> /dev/null; then
+        python3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)" || {
+            log_error "Python 3.8+ required"
+            missing_deps+=("python3.8+")
+        }
+    fi
+    
+    if [ ${#missing_deps[@]} -gt 0 ]; then
+        log_error "Missing dependencies: ${missing_deps[*]}"
+        echo
+        log_info "To install all dependencies, run:"
+        log_info "  ./install-dependencies.sh"
+        echo
+        log_info "Or install manually on Ubuntu/Debian:"
+        log_info "  sudo apt update"
+        log_info "  sudo apt install -y build-essential cmake ninja-build git curl python3 python3-pip patch make"
+        echo
         exit 1
-    }
+    fi
     
     log_success "All dependencies verified"
 }
