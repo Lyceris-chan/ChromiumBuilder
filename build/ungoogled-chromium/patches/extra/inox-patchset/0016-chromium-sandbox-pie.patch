@@ -1,0 +1,17 @@
+--- a/sandbox/linux/BUILD.gn
++++ b/sandbox/linux/BUILD.gn
+@@ -295,6 +295,14 @@ if (is_linux || is_chromeos) {
+       "suid/process_util_linux.c",
+       "suid/sandbox.c",
+     ]
++
++    cflags = [
++      "-fPIE",
++    ]
++
++    ldflags = [
++      "-pie",
++    ]
+   }
+ }
+ 
