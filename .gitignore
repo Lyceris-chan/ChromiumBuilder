@@ -1,0 +1,49 @@
+# Build directories
+build/
+out/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Virtual environments
+venv/
+env/
+.env
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Chromium specific
+depot_tools/
+chromium/
+ungoogled-chromium/
+chromium-clang/
+
+# Artifacts
+artifacts/
+*.tar.gz
+*.zip
+
+# Custom toolchain
+custom-toolchain/

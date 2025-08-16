@@ -35,13 +35,31 @@ log_error() {
 check_dependencies() {
     log_info "Checking toolchain dependencies..."
     
-    local deps=("cmake" "ninja-build" "python3" "git")
+    local deps=("cmake" "python3" "git")
+    local missing_deps=()
+    
+    # Check basic dependencies
     for dep in "${deps[@]}"; do
         if ! command -v "$dep" &> /dev/null; then
+            missing_deps+=("$dep")
             log_error "Required dependency '$dep' not found"
-            exit 1
         fi
     done
+    
+    # Check for ninja (handle both ninja and ninja-build)
+    if command -v ninja &> /dev/null; then
+        log_success "Found ninja build system"
+    elif command -v ninja-build &> /dev/null; then
+        log_success "Found ninja-build build system"
+    else
+        missing_deps+=("ninja")
+        log_error "Required dependency 'ninja' not found"
+    fi
+    
+    if [ ${#missing_deps[@]} -gt 0 ]; then
+        log_error "Missing toolchain dependencies: ${missing_deps[*]}"
+        exit 1
+    fi
     
     log_success "Dependencies verified"
 }
