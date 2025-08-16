@@ -52,15 +52,32 @@ trap cleanup EXIT
 check_dependencies() {
     log_info "Checking dependencies..."
     
-    local deps=("git" "python3" "ninja" "curl" "tar" "patch" "make" "cmake")
+    local deps=("git" "python3" "curl" "tar" "patch" "make" "cmake")
     local missing_deps=()
     
+    # Check basic dependencies
     for dep in "${deps[@]}"; do
         if ! command -v "$dep" &> /dev/null; then
             missing_deps+=("$dep")
             log_error "Required dependency '$dep' not found"
         fi
     done
+    
+    # Check for ninja (different command names on different systems)
+    if command -v ninja &> /dev/null; then
+        log_success "Found ninja build system"
+    elif command -v ninja-build &> /dev/null; then
+        log_success "Found ninja-build build system"
+        # Create symlink for consistency
+        if [ ! -f "$HOME/.local/bin/ninja" ]; then
+            mkdir -p "$HOME/.local/bin"
+            ln -sf "$(which ninja-build)" "$HOME/.local/bin/ninja"
+            log_info "Created ninja symlink for compatibility"
+        fi
+    else
+        missing_deps+=("ninja")
+        log_error "Required dependency 'ninja' not found (install ninja-build package)"
+    fi
     
     # Check for minimum Python version
     if command -v python3 &> /dev/null; then
