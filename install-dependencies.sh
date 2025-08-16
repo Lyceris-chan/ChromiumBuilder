@@ -360,30 +360,24 @@ verify_installation() {
 setup_environment() {
     log_info "Setting up build environment..."
     
-    # Handle externally managed Python environments
-    if python3 -m pip install --user --upgrade pip 2>&1 | grep -q "externally-managed-environment"; then
-        log_warning "Python environment is externally managed"
-        log_info "Using system packages instead of pip..."
-        
-        # Install Python packages via system package manager
-        case $DISTRO in
-            ubuntu|debian)
-                sudo apt install -y python3-setuptools python3-wheel python3-venv
-                ;;
-            fedora)
-                sudo dnf install -y python3-setuptools python3-wheel python3-virtualenv
-                ;;
-            centos|rhel)
-                sudo yum install -y python3-setuptools python3-wheel python3-virtualenv
-                ;;
-            arch)
-                sudo pacman -S --needed python-setuptools python-wheel python-virtualenv
-                ;;
-        esac
-    else
-        # Traditional pip install for older systems
-        python3 -m pip install --user --upgrade pip setuptools wheel
-    fi
+    # Skip pip installation entirely for externally managed environments
+    log_info "Skipping pip installation (using system packages only)"
+    
+    # Install Python packages via system package manager only
+    case $DISTRO in
+        ubuntu|debian)
+            sudo apt install -y python3-setuptools python3-wheel python3-venv python3-dev
+            ;;
+        fedora)
+            sudo dnf install -y python3-setuptools python3-wheel python3-virtualenv python3-devel
+            ;;
+        centos|rhel)
+            sudo yum install -y python3-setuptools python3-wheel python3-virtualenv python3-devel
+            ;;
+        arch)
+            sudo pacman -S --needed python-setuptools python-wheel python-virtualenv
+            ;;
+    esac
     
     # Create .bashrc additions for build environment
     if ! grep -q "Ultimate Chromium Builder environment" ~/.bashrc 2>/dev/null; then
