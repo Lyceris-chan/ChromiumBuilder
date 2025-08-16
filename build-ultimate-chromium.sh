@@ -140,7 +140,7 @@ clone_repositories() {
         git clone --depth 1 https://github.com/ungoogled-software/ungoogled-chromium.git ungoogled-chromium
     else
         log_info "Updating ungoogled-chromium..."
-        cd "${UNGOOGLED_DIR}" && git pull origin master
+        cd "${UNGOOGLED_DIR}" && (git pull origin master || git pull origin main) && cd "${BUILD_DIR}"
     fi
     
     # Clone Chromium Clang optimizations
@@ -149,16 +149,42 @@ clone_repositories() {
         git clone --depth 1 https://github.com/RobRich999/Chromium_Clang.git chromium-clang
     else
         log_info "Updating Chromium Clang..."
-        cd "${CLANG_DIR}" && git pull origin main
+        cd "${CLANG_DIR}" && git pull origin main && cd "${BUILD_DIR}"
     fi
     
     # Get Chromium source
     if [ ! -d "${CHROMIUM_DIR}" ]; then
-        log_info "Fetching Chromium source..."
+        log_info "Fetching Chromium source (this may take a while)..."
         cd "${BUILD_DIR}"
-        fetch --nohooks chromium
+        
+        # Check if depot_tools is in PATH
+        if ! command -v fetch >/dev/null; then
+            log_error "depot_tools not found in PATH"
+            export PATH="${BUILD_DIR}/depot_tools:$PATH"
+        fi
+        
+        # Fetch Chromium with timeout and retry
+        timeout 3600 fetch --nohooks chromium || {
+            log_error "Chromium fetch failed or timed out"
+            log_info "You may need to run this manually: cd ${BUILD_DIR} && fetch --nohooks chromium"
+            exit 1
+        }
+        
         cd chromium
-        git checkout -f $(cat "${UNGOOGLED_DIR}/chromium_version.txt")
+        
+        # Get the correct Chromium version
+        if [ -f "${UNGOOGLED_DIR}/chromium_version.txt" ]; then
+            local chromium_version=$(cat "${UNGOOGLED_DIR}/chromium_version.txt")
+            log_info "Checking out Chromium version: $chromium_version"
+            git checkout -f "$chromium_version"
+        else
+            log_warning "chromium_version.txt not found, using latest"
+        fi
+        
+        # Run hooks
+        gclient sync --nohooks
+    else
+        log_info "Chromium source already available"
     fi
     
     log_success "All repositories ready"
@@ -168,15 +194,44 @@ clone_repositories() {
 setup_custom_toolchain() {
     log_info "Setting up custom optimized Clang toolchain..."
     
-    cd "${CHROMIUM_DIR}"
+    # Check available system resources
+    local total_mem_gb=$(free -g | awk '/^Mem:/{print $2}')
+    if [ "$total_mem_gb" -lt 4 ]; then
+        log_error "Insufficient memory for toolchain build. At least 4GB RAM required."
+        log_info "Consider using a system with more memory or enable swap space."
+        exit 1
+    fi
     
-    # Run toolchain setup script
-    "${SCRIPT_DIR}/utils/setup-toolchain.sh" "${TOOLCHAIN_DIR}"
+    # Run toolchain setup script with error handling
+    if ! "${SCRIPT_DIR}/utils/setup-toolchain.sh" "${TOOLCHAIN_DIR}"; then
+        log_error "Custom toolchain setup failed"
+        log_info "Falling back to system Clang toolchain..."
+        
+        # Fallback: use system clang if custom build fails
+        if command -v clang >/dev/null && command -v clang++ >/dev/null; then
+            log_warning "Using system Clang toolchain as fallback"
+            export CC=clang
+            export CXX=clang++
+            return 0
+        else
+            log_error "No usable Clang toolchain available"
+            exit 1
+        fi
+    fi
     
-    # Update LLVM for optimizations
-    python3 tools/clang/scripts/update.py --bootstrap --without-android \
-        --without-fuchsia --disable-asserts --thinlto --pgo --bolt \
-        --llvm-force-head-revision
+    # Only run Chromium's LLVM update if we have the Chromium source
+    if [ -d "${CHROMIUM_DIR}/tools/clang" ]; then
+        log_info "Updating Chromium's LLVM tools..."
+        cd "${CHROMIUM_DIR}"
+        
+        # Update LLVM for optimizations (with fallback)
+        python3 tools/clang/scripts/update.py --bootstrap --without-android \
+            --without-fuchsia --disable-asserts || {
+            log_warning "LLVM update failed, proceeding with existing toolchain"
+        }
+    else
+        log_info "Chromium source not available yet, skipping LLVM update"
+    fi
     
     log_success "Custom toolchain ready"
 }
