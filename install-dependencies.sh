@@ -360,11 +360,34 @@ verify_installation() {
 setup_environment() {
     log_info "Setting up build environment..."
     
-    # Set up Python environment
-    python3 -m pip install --user --upgrade pip setuptools wheel
+    # Handle externally managed Python environments
+    if python3 -m pip install --user --upgrade pip 2>&1 | grep -q "externally-managed-environment"; then
+        log_warning "Python environment is externally managed"
+        log_info "Using system packages instead of pip..."
+        
+        # Install Python packages via system package manager
+        case $DISTRO in
+            ubuntu|debian)
+                sudo apt install -y python3-setuptools python3-wheel python3-venv
+                ;;
+            fedora)
+                sudo dnf install -y python3-setuptools python3-wheel python3-virtualenv
+                ;;
+            centos|rhel)
+                sudo yum install -y python3-setuptools python3-wheel python3-virtualenv
+                ;;
+            arch)
+                sudo pacman -S --needed python-setuptools python-wheel python-virtualenv
+                ;;
+        esac
+    else
+        # Traditional pip install for older systems
+        python3 -m pip install --user --upgrade pip setuptools wheel
+    fi
     
     # Create .bashrc additions for build environment
-    cat >> ~/.bashrc << 'EOF'
+    if ! grep -q "Ultimate Chromium Builder environment" ~/.bashrc 2>/dev/null; then
+        cat >> ~/.bashrc << 'EOF'
 
 # Ultimate Chromium Builder environment
 export PATH="$HOME/.local/bin:$PATH"
@@ -378,6 +401,10 @@ if [ -d "$HOME/depot_tools" ]; then
 fi
 
 EOF
+        log_info "Added environment variables to ~/.bashrc"
+    else
+        log_info "Environment variables already configured"
+    fi
     
     log_success "Environment configured"
 }
